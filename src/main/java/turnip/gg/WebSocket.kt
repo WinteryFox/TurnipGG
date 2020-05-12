@@ -31,24 +31,20 @@ class WebSocket {
 
 class TurnipWebSocketHandler : WebSocketHandler {
 
-    val mapper = JsonMapper()
-    val redis: RedisReactiveCommands<String, String> = RedisClient.create("redis://localhost:6379").connect().reactive()
-    val islandManagers: MutableMap<String, IslandManager> = ConcurrentHashMap()
+    private val mapper = JsonMapper()
+    private val redis = RedisClient.create("redis://localhost:6379").connect().reactive()
+    private val islandManagers: MutableMap<String, IslandManager> = ConcurrentHashMap()
 
-    override fun handle(session: WebSocketSession): Mono<Void> {
-        val input = session.receive()
-                .map { it.payloadAsText }
-                .flatMap { handleJson(session, it) }
-                .then()
+    override fun handle(session: WebSocketSession): Mono<Void> = session.receive()
+            .map { it.payloadAsText }
+            .flatMap { handleJson(session, it) }
+            .then()
 
-        return input
-    }
-
-    fun handleJson(session: WebSocketSession, rawText: String): Mono<Void> = Mono.fromSupplier {
+    private fun handleJson(session: WebSocketSession, rawText: String): Mono<Void> = Mono.fromSupplier {
         return@fromSupplier mapper.readTree(rawText)
     }.map { Pair(it.findValue("type").asText(), it) }
             .map {
-                when(it.first) {
+                when (it.first) {
                     "CreateIsland" -> { // Add island to list
                         return@map mapper.treeToValue(it.second, CreateIsland::class.java)
                     }
@@ -66,38 +62,42 @@ class TurnipWebSocketHandler : WebSocketHandler {
                     }
                 }
             }
-            .flatMap {
-                if (it is CreateIsland) {
-                    require(
-                            it.island.code.length == 5 &&
-                                    it.island.islandName.isNotEmpty() &&
-                                    it.island.userName.isNotEmpty() &&
-                                    it.island.description.isNotEmpty()
-                    )
+            .flatMap { payload ->
+                when (payload) {
+                    is CreateIsland -> {
+                        require(payload.island.code.length == 5) { "Dodo code must be 5 characters" }
+                        require(payload.island.islandName.isNotEmpty()) { "Island name is empty" }
+                        require(payload.island.userName.isNotEmpty()) { "Host username is empty" }
+                        require(payload.island.description.isNotEmpty()) { "Island description is empty" }
 
-                    return@flatMap redis.hmset("island:${it.island.id}", it.island.getData())
-                            .doOnNext { _ -> islandManagers[it.island.id] = IslandManager(it.island) }
-                            .flatMap { session.send(session.textMessage("Ok").toMono()) }
-                } else if (it is RemoveIsland) {
-                    return@flatMap redis.hdel("island:${it.islandId}")
-                            .doOnNext { _ -> islandManagers.remove(it.islandId) }
-                            .flatMap { session.send(session.textMessage("Ok").toMono()) }
-                } else if (it is ListIslands) {
-                    return@flatMap redis.keys("island:*")
-                            .flatMap { redis.hgetall(it) }
-                            .map { PartialIsland.fromMap(it) }
-                            .collectList()
-                            .map { mapper.writeValueAsString(it) }
-                            .flatMap { session.send(session.textMessage(it).toMono()) }
-                } else if (it is JoinQueue) {
-                    // Join queue, tell the manager that the queue has had someone join, when there is an opening get
-                    // the code and send it to the user
-                    return@flatMap redis.rpush("islandQueue:${it.islandId}", it.userId)
-                            .flatMap { _ -> islandManagers[it.islandId]!!.signalJoin() }
-                            .flatMap { _ -> redis.hget("island:${it.islandId}", "code") }
-                            .flatMap { session.send(session.textMessage(it).toMono()) }
-                } else {
-                    return@flatMap Mono.error(Exception())
+                        return@flatMap redis.hmset("island:${payload.island.id}", payload.island.getData())
+                                .doOnNext { islandManagers[payload.island.id] = IslandManager(redis, payload.island) }
+                                .flatMap { session.send(session.textMessage("Ok").toMono()) }
+                    }
+                    is RemoveIsland -> {
+                        return@flatMap redis.hdel("island:${payload.islandId}")
+                                .doOnNext { islandManagers.remove(payload.islandId) }
+                                .flatMap { session.send(session.textMessage("Ok").toMono()) }
+                    }
+                    is ListIslands -> {
+                        return@flatMap redis.keys("island:*")
+                                .flatMap { redis.hgetall(it) }
+                                .map { PartialIsland.fromMap(it) }
+                                .collectList()
+                                .map { mapper.writeValueAsString(it) }
+                                .flatMap { session.send(session.textMessage(it).toMono()) }
+                    }
+                    is JoinQueue -> {
+                        // Join queue, tell the manager that the queue has had someone join, when there is an opening get
+                        // the code and send it to the user
+                        return@flatMap islandManagers[payload.islandId]!!.push(Player(payload.userId))
+                                .flatMap { islandManagers[payload.islandId]!!.signalJoin() }
+                                .flatMap { redis.hget("island:${payload.islandId}", "code") }
+                                .flatMap { session.send(session.textMessage(it).toMono()) }
+                    }
+                    else -> {
+                        return@flatMap Mono.error(Exception())
+                    }
                 }
             }
             .then()
