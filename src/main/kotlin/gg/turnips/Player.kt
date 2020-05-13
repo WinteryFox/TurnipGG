@@ -1,4 +1,4 @@
-package turnip.gg
+package gg.turnips
 
 data class Player(
         val name: String

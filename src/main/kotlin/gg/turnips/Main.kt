@@ -1,4 +1,4 @@
-package turnip.gg
+package gg.turnips
 
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication

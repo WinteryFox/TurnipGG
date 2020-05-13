@@ -1,3 +1,3 @@
-package turnip.gg.exception
+package gg.turnips.exception
 
 class QueueFullException() : ListFullException()

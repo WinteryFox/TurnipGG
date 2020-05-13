@@ -8,10 +8,10 @@
         <version>2.2.6.RELEASE</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
-    <groupId>turnip.gg</groupId>
-    <artifactId>TurnipGG</artifactId>
+    <groupId>gg.turnips</groupId>
+    <artifactId>TurnipsGG</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>TurnipGG</name>
+    <name>TurnipsGG</name>
     <description>Turnip stalk market at its best</description>
 
     <properties>
@@ -27,10 +27,6 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webflux</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-websocket</artifactId>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.module</groupId>

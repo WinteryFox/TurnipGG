@@ -1,4 +1,4 @@
-package turnip.gg
+package gg.turnips
 
 data class PartialIsland(
         val id: String,

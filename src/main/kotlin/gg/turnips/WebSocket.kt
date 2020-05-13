@@ -1,4 +1,4 @@
-package turnip.gg
+package gg.turnips
 
 import com.fasterxml.jackson.databind.json.JsonMapper
 import io.lettuce.core.RedisClient
@@ -7,10 +7,10 @@ import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.stereotype.Component
+import org.springframework.web.reactive.handler.SimpleUrlHandlerMapping
 import org.springframework.web.reactive.socket.WebSocketHandler
 import org.springframework.web.reactive.socket.WebSocketSession
 import org.springframework.web.reactive.socket.server.support.WebSocketHandlerAdapter
-import org.springframework.web.servlet.handler.SimpleUrlHandlerMapping
 import reactor.core.publisher.Mono
 import reactor.kotlin.core.publisher.toMono
 import java.util.concurrent.ConcurrentHashMap
@@ -19,17 +19,17 @@ import kotlin.RuntimeException
 @Configuration
 class WebSocket {
     @Autowired
-    @Qualifier("TurnipWebSocketHandler")
-    private lateinit var webSocketHandler: WebSocketHandler
+    @Qualifier("TurnipWebSocket")
+    private lateinit var handler: WebSocketHandler
 
     @Bean
-    fun wsHandlerMapping() = SimpleUrlHandlerMapping(mapOf("/socket" to TurnipWebSocketHandler()), 1)
+    fun handlerMapping() = SimpleUrlHandlerMapping(mapOf("/socket" to handler), 1)
 
     @Bean
     fun handlerAdapter() = WebSocketHandlerAdapter()
 }
 
-@Component("TurnipWebSocketHandler")
+@Component("TurnipWebSocket")
 class TurnipWebSocketHandler : WebSocketHandler {
     private val mapper = JsonMapper()
     private val redis = RedisClient.create("redis://localhost:6379").connect().reactive()

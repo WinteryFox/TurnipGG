@@ -1,4 +1,4 @@
-package turnip.gg
+package gg.turnips
 
 interface Payload {
     val type: String

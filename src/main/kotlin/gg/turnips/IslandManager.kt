@@ -1,10 +1,10 @@
-package turnip.gg
+package gg.turnips
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.lettuce.core.api.reactive.RedisReactiveCommands
 import reactor.core.publisher.Mono
-import turnip.gg.exception.IslandFullException
-import turnip.gg.exception.QueueFullException
+import gg.turnips.exception.IslandFullException
+import gg.turnips.exception.QueueFullException
 
 class IslandManager(
         private val redis: RedisReactiveCommands<String, String>,
