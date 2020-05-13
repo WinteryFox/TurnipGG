@@ -11,7 +11,7 @@ class IslandManager(
         island: Island,
         private val maxQueueSize: Int = 30, /*TODO: Make this configurable*/
         private val maxPlayersOnIsland: Int = 4 /* TODO: This too */
-) : AutoCloseable {
+) {
     val islandKey = "islands:${island.id}"
     val queueKey = "queues:${island.id}"
     val playersKey = "players:${island.id}"
@@ -48,11 +48,8 @@ class IslandManager(
         return Mono.empty() // TODO
     }
 
-    // TODO: Probably shouldn't do this
-    override fun close() {
-        redis.hdel(islandKey)
-                .then(redis.del(queueKey))
-                .then(redis.del(playersKey))
-                .block()
-    }
+    fun close(): Mono<Void> = redis.hdel(islandKey)
+            .then(redis.del(queueKey))
+            .then(redis.del(playersKey))
+            .then()
 }

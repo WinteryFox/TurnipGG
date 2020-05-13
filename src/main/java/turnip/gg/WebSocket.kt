@@ -2,10 +2,11 @@ package turnip.gg
 
 import com.fasterxml.jackson.databind.json.JsonMapper
 import io.lettuce.core.RedisClient
-import io.lettuce.core.api.reactive.RedisReactiveCommands
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.web.servlet.HandlerMapping
+import org.springframework.stereotype.Component
 import org.springframework.web.reactive.socket.WebSocketHandler
 import org.springframework.web.reactive.socket.WebSocketSession
 import org.springframework.web.reactive.socket.server.support.WebSocketHandlerAdapter
@@ -13,24 +14,23 @@ import org.springframework.web.servlet.handler.SimpleUrlHandlerMapping
 import reactor.core.publisher.Mono
 import reactor.kotlin.core.publisher.toMono
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.RuntimeException
 
 @Configuration
 class WebSocket {
+    @Autowired
+    @Qualifier("TurnipWebSocketHandler")
+    private lateinit var webSocketHandler: WebSocketHandler
 
     @Bean
-    fun wsHandlerMapping(): HandlerMapping {
-        val mapping = mapOf("/socket" to TurnipWebSocketHandler())
-        val order = -1 // before annotated controllers
-
-        return SimpleUrlHandlerMapping(mapping, order)
-    }
+    fun wsHandlerMapping() = SimpleUrlHandlerMapping(mapOf("/socket" to TurnipWebSocketHandler()), 1)
 
     @Bean
     fun handlerAdapter() = WebSocketHandlerAdapter()
 }
 
+@Component("TurnipWebSocketHandler")
 class TurnipWebSocketHandler : WebSocketHandler {
-
     private val mapper = JsonMapper()
     private val redis = RedisClient.create("redis://localhost:6379").connect().reactive()
     private val islandManagers: MutableMap<String, IslandManager> = ConcurrentHashMap()
@@ -75,9 +75,8 @@ class TurnipWebSocketHandler : WebSocketHandler {
                                 .flatMap { session.send(session.textMessage("Ok").toMono()) }
                     }
                     is RemoveIsland -> {
-                        return@flatMap redis.hdel("island:${payload.islandId}")
-                                .doOnNext { islandManagers.remove(payload.islandId) }
-                                .flatMap { session.send(session.textMessage("Ok").toMono()) }
+                        return@flatMap islandManagers[payload.islandId]!!.close()
+                                .flatMap { session.send(session.textMessage("OK").toMono()) }
                     }
                     is ListIslands -> {
                         return@flatMap redis.keys("island:*")
@@ -88,15 +87,13 @@ class TurnipWebSocketHandler : WebSocketHandler {
                                 .flatMap { session.send(session.textMessage(it).toMono()) }
                     }
                     is JoinQueue -> {
-                        // Join queue, tell the manager that the queue has had someone join, when there is an opening get
-                        // the code and send it to the user
                         return@flatMap islandManagers[payload.islandId]!!.push(Player(payload.userId))
                                 .flatMap { islandManagers[payload.islandId]!!.signalJoin() }
                                 .flatMap { redis.hget("island:${payload.islandId}", "code") }
                                 .flatMap { session.send(session.textMessage(it).toMono()) }
                     }
                     else -> {
-                        return@flatMap Mono.error(Exception())
+                        return@flatMap Mono.error<RuntimeException>(RuntimeException())
                     }
                 }
             }
